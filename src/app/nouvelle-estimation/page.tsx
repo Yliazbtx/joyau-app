@@ -1,9 +1,9 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 
-export default function NouvelleEstimationPage() {
+function NouvelleEstimationForm() {
   const [form, setForm] = useState({
     client_name: '',
     address: '',
@@ -26,7 +26,6 @@ export default function NouvelleEstimationPage() {
       if (!user) { router.push('/login'); return }
       const { data } = await supabase.from('profiles').select('full_name, role').eq('id', user.id).single()
       setProfile(data)
-
       const editParam = searchParams.get('edit')
       if (editParam) {
         setEditId(editParam)
@@ -50,10 +49,8 @@ export default function NouvelleEstimationPage() {
     e.preventDefault()
     setLoading(true)
     setError('')
-
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/login'); return }
-
     if (editId) {
       const { error: err } = await supabase.from('estimations').update({
         client_name: form.client_name,
@@ -75,7 +72,6 @@ export default function NouvelleEstimationPage() {
       })
       if (err) { setError(err.message); setLoading(false); return }
     }
-
     router.push('/')
   }
 
@@ -104,7 +100,6 @@ export default function NouvelleEstimationPage() {
         </div>
         <a href="/" style={{ color: 'rgba(255,255,255,0.7)', fontSize: '13px', textDecoration: 'none' }}>← Retour</a>
       </header>
-
       <main style={{ padding: '40px 32px', maxWidth: '640px', margin: '0 auto' }}>
         <h1 style={{ fontFamily: 'Georgia, serif', fontSize: '26px', color: '#1a2340', marginBottom: '8px' }}>
           {editId ? 'Modifier l\'estimation' : 'Nouvelle estimation'}
@@ -112,7 +107,6 @@ export default function NouvelleEstimationPage() {
         <p style={{ color: '#9ca3af', fontSize: '14px', marginBottom: '32px' }}>
           {editId ? 'Modifiez les informations du bien' : 'Renseignez les informations du bien à estimer'}
         </p>
-
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div style={{ background: '#fff', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 4px rgba(0,0,0,0.07)' }}>
             <h3 style={{ fontSize: '13px', letterSpacing: '1px', textTransform: 'uppercase', color: '#b8975a', marginBottom: '20px', fontWeight: '600' }}>Informations client</h3>
@@ -129,7 +123,6 @@ export default function NouvelleEstimationPage() {
               </div>
             </div>
           </div>
-
           <div style={{ background: '#fff', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 4px rgba(0,0,0,0.07)' }}>
             <h3 style={{ fontSize: '13px', letterSpacing: '1px', textTransform: 'uppercase', color: '#b8975a', marginBottom: '20px', fontWeight: '600' }}>Estimation</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -154,9 +147,7 @@ export default function NouvelleEstimationPage() {
               </div>
             </div>
           </div>
-
           {error && <p style={{ color: '#dc2626', fontSize: '14px', background: '#fef2f2', padding: '12px 16px', borderRadius: '8px' }}>{error}</p>}
-
           <div style={{ display: 'flex', gap: '12px' }}>
             <a href="/" style={{ flex: 1, padding: '14px', background: 'transparent', border: '1px solid #e5e7eb', color: '#6b7280', borderRadius: '8px', textDecoration: 'none', textAlign: 'center', fontSize: '15px' }}>
               Annuler
@@ -168,5 +159,17 @@ export default function NouvelleEstimationPage() {
         </form>
       </main>
     </div>
+  )
+}
+
+export default function NouvelleEstimationPage() {
+  return (
+    <Suspense fallback={
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0ede8' }}>
+        <p style={{ color: '#9ca3af' }}>Chargement...</p>
+      </div>
+    }>
+      <NouvelleEstimationForm />
+    </Suspense>
   )
 }

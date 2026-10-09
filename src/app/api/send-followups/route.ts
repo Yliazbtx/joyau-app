@@ -125,13 +125,5 @@ export async function POST(request: Request) {
     if (res.ok) commercialSent++
   }
 
-  return NextResponse.json({
-cat > /Users/$(whoami)/joyau-app/vercel.json << 'EOF'
-{
-  "crons": [
-    {
-      "path": "/api/send-followups",
-      "schedule": "0 7 * * *"
-    }
-  ]
+  return NextResponse.json({ clientSent, commercialSent })
 }

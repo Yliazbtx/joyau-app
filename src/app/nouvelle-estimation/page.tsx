@@ -91,7 +91,7 @@ function NouvelleEstimationForm() {
 
   const inputStyle = { width: '100%', padding: '12px 16px', borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '15px', outline: 'none', boxSizing: 'border-box' as const, background: '#fff', color: '#1a2340' }
   const labelStyle = { display: 'block' as const, fontSize: '12px', letterSpacing: '1px', textTransform: 'uppercase' as const, color: '#6b7280', marginBottom: '6px', fontWeight: '600' as const }
-  const checkLabel = (checked: boolean) => ({ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '8px 14px', borderRadius: '8px', border: `1px solid ${checked ? '#1a2340' : '#e5e7eb'}`, background: checked ? '#1a2340' : '#fff', color: checked ? '#fff' : '#4b5563', fontSize: '14px', fontWeight: '500' as const })
+  const checkLabel = (checked: boolean) => ({ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '8px 14px', borderRadius: '8px', border: '1px solid ' + (checked ? '#1a2340' : '#e5e7eb') + ',', background: checked ? '#1a2340' : '#fff', color: checked ? '#fff' : '#4b5563', fontSize: '14px', fontWeight: '500' as const })
 
   return (
     <div style={{ minHeight: '100vh', background: '#f0ede8', fontFamily: 'system-ui, sans-serif' }}>

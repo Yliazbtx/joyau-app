@@ -2,13 +2,22 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export function middleware(request: NextRequest) {
-  const token = request.cookies.get('sb-jltlikrdxcmiikpjwpmy-auth-token')
   const isLoginPage = request.nextUrl.pathname === '/login'
   const isApiRoute = request.nextUrl.pathname.startsWith('/api')
 
   if (isApiRoute) return NextResponse.next()
-  if (!token && !isLoginPage) return NextResponse.redirect(new URL('/login', request.url))
-  if (token && isLoginPage) return NextResponse.redirect(new URL('/', request.url))
+
+  const cookies = request.cookies.getAll()
+  const hasAuthCookie = cookies.some(c => c.name.startsWith('sb-') && c.name.endsWith('-auth-token'))
+
+  if (!hasAuthCookie && !isLoginPage) {
+    return NextResponse.redirect(new URL('/login', request.url))
+  }
+
+  if (hasAuthCookie && isLoginPage) {
+    return NextResponse.redirect(new URL('/', request.url))
+  }
+
   return NextResponse.next()
 }
 

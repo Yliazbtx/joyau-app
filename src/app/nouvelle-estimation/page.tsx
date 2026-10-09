@@ -6,10 +6,12 @@ import { createClient } from '@/lib/supabase'
 function NouvelleEstimationForm() {
   const [form, setForm] = useState({
     client_name: '',
+    client_email: '',
     address: '',
     estimated_value: '',
     notes: '',
     status: 'en_attente',
+    next_followup: '',
   })
   const [profile, setProfile] = useState<{ full_name: string; role: string } | null>(null)
   const [loading, setLoading] = useState(false)
@@ -33,10 +35,12 @@ function NouvelleEstimationForm() {
         if (est) {
           setForm({
             client_name: est.client_name,
+            client_email: est.client_email || '',
             address: est.address,
             estimated_value: String(est.estimated_value),
             notes: est.notes || '',
             status: est.status,
+            next_followup: est.next_followup ? est.next_followup.slice(0, 10) : '',
           })
         }
       }
@@ -51,25 +55,28 @@ function NouvelleEstimationForm() {
     setError('')
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/login'); return }
+
+    const payload: Record<string, unknown> = {
+      client_name: form.client_name,
+      client_email: form.client_email || null,
+      address: form.address,
+      estimated_value: parseFloat(form.estimated_value),
+      notes: form.notes,
+      status: form.status,
+      next_followup: form.next_followup || null,
+    }
+
     if (editId) {
-      const { error: err } = await supabase.from('estimations').update({
-        client_name: form.client_name,
-        address: form.address,
-        estimated_value: parseFloat(form.estimated_value),
-        notes: form.notes,
-        status: form.status,
-      }).eq('id', editId)
+      const { error: err } = await supabase.from('estimations').update(payload).eq('id', editId)
       if (err) { setError(err.message); setLoading(false); return }
     } else {
-      const { error: err } = await supabase.from('estimations').insert({
-        client_name: form.client_name,
-        address: form.address,
-        estimated_value: parseFloat(form.estimated_value),
-        notes: form.notes,
-        status: form.status,
-        commercial_name: profile?.full_name || '',
-        user_id: user.id,
-      })
+      // Par défaut relance dans 21 jours
+      const defaultFollowup = new Date()
+      defaultFollowup.setDate(defaultFollowup.getDate() + 21)
+      payload.next_followup = payload.next_followup || defaultFollowup.toISOString()
+      payload.commercial_name = profile?.full_name || ''
+      payload.user_id = user.id
+      const { error: err } = await supabase.from('estimations').insert(payload)
       if (err) { setError(err.message); setLoading(false); return }
     }
     router.push('/')
@@ -102,7 +109,7 @@ function NouvelleEstimationForm() {
       </header>
       <main style={{ padding: '40px 32px', maxWidth: '640px', margin: '0 auto' }}>
         <h1 style={{ fontFamily: 'Georgia, serif', fontSize: '26px', color: '#1a2340', marginBottom: '8px' }}>
-          {editId ? 'Modifier l\'estimation' : 'Nouvelle estimation'}
+          {editId ? "Modifier l'estimation" : 'Nouvelle estimation'}
         </h1>
         <p style={{ color: '#9ca3af', fontSize: '14px', marginBottom: '32px' }}>
           {editId ? 'Modifiez les informations du bien' : 'Renseignez les informations du bien à estimer'}
@@ -117,12 +124,18 @@ function NouvelleEstimationForm() {
                   onChange={e => setForm({ ...form, client_name: e.target.value })} required />
               </div>
               <div>
+                <label style={labelStyle}>Email client (pour relances automatiques)</label>
+                <input style={inputStyle} type="email" placeholder="jean.dupont@email.com" value={form.client_email}
+                  onChange={e => setForm({ ...form, client_email: e.target.value })} />
+              </div>
+              <div>
                 <label style={labelStyle}>Adresse du bien *</label>
                 <input style={inputStyle} type="text" placeholder="Ex: 12 rue de la Paix, 75001 Paris" value={form.address}
                   onChange={e => setForm({ ...form, address: e.target.value })} required />
               </div>
             </div>
           </div>
+
           <div style={{ background: '#fff', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 4px rgba(0,0,0,0.07)' }}>
             <h3 style={{ fontSize: '13px', letterSpacing: '1px', textTransform: 'uppercase', color: '#b8975a', marginBottom: '20px', fontWeight: '600' }}>Estimation</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -141,19 +154,26 @@ function NouvelleEstimationForm() {
                 </select>
               </div>
               <div>
+                <label style={labelStyle}>Prochaine relance client</label>
+                <input style={inputStyle} type="date" value={form.next_followup}
+                  onChange={e => setForm({ ...form, next_followup: e.target.value })} />
+                <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>Par défaut : 21 jours. Se remet à J+21 après chaque relance envoyée.</p>
+              </div>
+              <div>
                 <label style={labelStyle}>Notes (optionnel)</label>
                 <textarea style={{ ...inputStyle, minHeight: '100px', resize: 'vertical' }} placeholder="Informations complémentaires..."
                   value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
               </div>
             </div>
           </div>
+
           {error && <p style={{ color: '#dc2626', fontSize: '14px', background: '#fef2f2', padding: '12px 16px', borderRadius: '8px' }}>{error}</p>}
           <div style={{ display: 'flex', gap: '12px' }}>
             <a href="/" style={{ flex: 1, padding: '14px', background: 'transparent', border: '1px solid #e5e7eb', color: '#6b7280', borderRadius: '8px', textDecoration: 'none', textAlign: 'center', fontSize: '15px' }}>
               Annuler
             </a>
             <button type="submit" disabled={loading} style={{ flex: 2, padding: '14px', background: '#1a2340', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '15px', fontWeight: '600', cursor: 'pointer' }}>
-              {loading ? 'Enregistrement...' : (editId ? 'Enregistrer les modifications' : 'Enregistrer l\'estimation')}
+              {loading ? 'Enregistrement...' : (editId ? 'Enregistrer les modifications' : "Enregistrer l'estimation")}
             </button>
           </div>
         </form>

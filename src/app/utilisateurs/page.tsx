@@ -8,10 +8,15 @@ type Profile = {
   full_name: string
   role: string
   created_at: string
+  email?: string
 }
 
-const ROLE_LABELS: Record<string, string> = { manager: 'Manager', admin: 'Admin', commercial: 'Commercial' }
-const ROLE_COLORS: Record<string, string> = { manager: '#7c3aed', admin: '#b8975a', commercial: '#1a2340' }
+const ROLE_LABELS: Record<string, string> = {
+  manager: 'Manager', admin: 'Admin', commercial: 'Commercial',
+}
+const ROLE_COLORS: Record<string, string> = {
+  manager: '#7c3aed', admin: '#b8975a', commercial: '#1a2340',
+}
 
 export default function UtilisateursPage() {
   const [profiles, setProfiles] = useState<Profile[]>([])
@@ -22,7 +27,9 @@ export default function UtilisateursPage() {
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-  const [deleteTarget, setDeleteTarget] = useState<Profile | null>(null)
+  const [editingEmail, setEditingEmail] = useState<string | null>(null)
+  const [emailValue, setEmailValue] = useState('')
+  const [deleteModal, setDeleteModal] = useState<Profile | null>(null)
   const [reassignTo, setReassignTo] = useState('')
   const [deleting, setDeleting] = useState(false)
   const router = useRouter()
@@ -67,21 +74,27 @@ export default function UtilisateursPage() {
     setProfiles(prev => prev.map(p => p.id === id ? { ...p, role } : p))
   }
 
-  const confirmDelete = async () => {
-    if (!deleteTarget || !reassignTo) return
+  const saveEmail = async (id: string) => {
+    await supabase.from('profiles').update({ email: emailValue }).eq('id', id)
+    setProfiles(prev => prev.map(p => p.id === id ? { ...p, email: emailValue } : p))
+    setEditingEmail(null)
+  }
+
+  const handleDelete = async () => {
+    if (!deleteModal) return
     setDeleting(true)
-    const target = profiles.find(p => p.id === reassignTo)
-    if (target) {
+    if (reassignTo) {
+      const target = profiles.find(p => p.id === reassignTo)
       await supabase.from('estimations')
-        .update({ user_id: reassignTo, commercial_name: target.full_name })
-        .eq('user_id', deleteTarget.id)
+        .update({ user_id: reassignTo, commercial_name: target?.full_name || '' })
+        .eq('user_id', deleteModal.id)
     }
-    await supabase.from('profiles').delete().eq('id', deleteTarget.id)
-    setProfiles(prev => prev.filter(p => p.id !== deleteTarget.id))
-    setDeleteTarget(null)
+    await supabase.from('profiles').delete().eq('id', deleteModal.id)
+    setProfiles(prev => prev.filter(p => p.id !== deleteModal.id))
+    setDeleteModal(null)
     setReassignTo('')
     setDeleting(false)
-    setSuccess(`${deleteTarget.full_name} supprimé, estimations réattribuées à ${target?.full_name}`)
+    setSuccess(`${deleteModal.full_name} supprimé`)
   }
 
   const inputStyle = {
@@ -98,25 +111,26 @@ export default function UtilisateursPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#f0ede8', fontFamily: 'system-ui, sans-serif' }}>
-      {deleteTarget && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 }}>
-          <div style={{ background: '#fff', borderRadius: '16px', padding: '32px', maxWidth: '440px', width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
-            <h3 style={{ fontFamily: 'Georgia, serif', fontSize: '20px', color: '#1a2340', marginBottom: '8px' }}>Supprimer {deleteTarget.full_name}</h3>
-            <p style={{ color: '#6b7280', fontSize: '14px', marginBottom: '20px' }}>Les estimations de ce collaborateur seront réattribuées à :</p>
-            <select value={reassignTo} onChange={e => setReassignTo(e.target.value)} style={{ ...inputStyle, marginBottom: '20px' }}>
-              <option value="">— Choisir un collaborateur —</option>
-              {profiles.filter(p => p.id !== deleteTarget.id).map(p => (
-                <option key={p.id} value={p.id}>{p.full_name} ({ROLE_LABELS[p.role] || p.role})</option>
+      {deleteModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', borderRadius: '16px', padding: '32px', maxWidth: '440px', width: '90%' }}>
+            <h3 style={{ fontFamily: 'Georgia, serif', fontSize: '20px', color: '#1a2340', marginBottom: '8px' }}>Supprimer {deleteModal.full_name} ?</h3>
+            <p style={{ color: '#6b7280', fontSize: '14px', marginBottom: '20px' }}>Ses estimations peuvent être réattribuées avant la suppression.</p>
+            <label style={{ display: 'block', fontSize: '12px', color: '#6b7280', marginBottom: '6px', fontWeight: '600', textTransform: 'uppercase' }}>Réattribuer les estimations à</label>
+            <select style={{ ...inputStyle, marginBottom: '20px' }} value={reassignTo} onChange={e => setReassignTo(e.target.value)}>
+              <option value="">— Laisser sans commercial —</option>
+              {profiles.filter(p => p.id !== deleteModal.id).map(p => (
+                <option key={p.id} value={p.id}>{p.full_name}</option>
               ))}
             </select>
             <div style={{ display: 'flex', gap: '12px' }}>
-              <button onClick={() => { setDeleteTarget(null); setReassignTo('') }}
-                style={{ flex: 1, padding: '12px', background: 'transparent', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '14px', cursor: 'pointer', color: '#6b7280' }}>
+              <button onClick={() => { setDeleteModal(null); setReassignTo('') }}
+                style={{ flex: 1, padding: '10px', background: 'transparent', border: '1px solid #e5e7eb', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', color: '#6b7280' }}>
                 Annuler
               </button>
-              <button onClick={confirmDelete} disabled={!reassignTo || deleting}
-                style={{ flex: 1, padding: '12px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: reassignTo ? 'pointer' : 'not-allowed', opacity: reassignTo ? 1 : 0.5 }}>
-                {deleting ? 'Suppression...' : 'Confirmer'}
+              <button onClick={handleDelete} disabled={deleting}
+                style={{ flex: 1, padding: '10px', background: '#dc2626', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', color: '#fff', fontWeight: '600' }}>
+                {deleting ? 'Suppression...' : 'Supprimer'}
               </button>
             </div>
           </div>
@@ -155,22 +169,22 @@ export default function UtilisateursPage() {
             <form onSubmit={createUser}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', color: '#6b7280', marginBottom: '6px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Nom complet *</label>
+                  <label style={{ display: 'block', fontSize: '12px', color: '#6b7280', marginBottom: '6px', fontWeight: '600', textTransform: 'uppercase' }}>Nom complet *</label>
                   <input style={inputStyle} type="text" placeholder="Prénom Nom" value={newUser.full_name}
                     onChange={e => setNewUser({ ...newUser, full_name: e.target.value })} required />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', color: '#6b7280', marginBottom: '6px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Email *</label>
+                  <label style={{ display: 'block', fontSize: '12px', color: '#6b7280', marginBottom: '6px', fontWeight: '600', textTransform: 'uppercase' }}>Email *</label>
                   <input style={inputStyle} type="email" placeholder="prenom@joyau-immobilier.com" value={newUser.email}
                     onChange={e => setNewUser({ ...newUser, email: e.target.value })} required />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', color: '#6b7280', marginBottom: '6px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Mot de passe *</label>
+                  <label style={{ display: 'block', fontSize: '12px', color: '#6b7280', marginBottom: '6px', fontWeight: '600', textTransform: 'uppercase' }}>Mot de passe *</label>
                   <input style={inputStyle} type="text" placeholder="Mot de passe temporaire" value={newUser.password}
                     onChange={e => setNewUser({ ...newUser, password: e.target.value })} required minLength={6} />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', color: '#6b7280', marginBottom: '6px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Rôle *</label>
+                  <label style={{ display: 'block', fontSize: '12px', color: '#6b7280', marginBottom: '6px', fontWeight: '600', textTransform: 'uppercase' }}>Rôle *</label>
                   <select style={inputStyle} value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value })}>
                     <option value="commercial">Commercial</option>
                     <option value="admin">Admin</option>
@@ -191,7 +205,7 @@ export default function UtilisateursPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: '2px solid #f0ede8' }}>
-                {['Nom', 'Rôle', 'Membre depuis', ''].map((h, i) => (
+                {['Nom', 'Email', 'Rôle', 'Membre depuis', ''].map((h, i) => (
                   <th key={i} style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', letterSpacing: '1px', textTransform: 'uppercase', color: '#9ca3af', fontWeight: '600' }}>{h}</th>
                 ))}
               </tr>
@@ -206,6 +220,23 @@ export default function UtilisateursPage() {
                       </div>
                       {p.full_name}
                     </div>
+                  </td>
+                  <td style={{ padding: '16px', fontSize: '13px', color: '#6b7280' }}>
+                    {editingEmail === p.id ? (
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <input type="email" value={emailValue} onChange={e => setEmailValue(e.target.value)}
+                          style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #e5e7eb', fontSize: '13px', outline: 'none', width: '200px' }}
+                          autoFocus onKeyDown={e => { if (e.key === 'Enter') saveEmail(p.id); if (e.key === 'Escape') setEditingEmail(null) }} />
+                        <button onClick={() => saveEmail(p.id)} style={{ background: '#1a2340', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>✓</button>
+                        <button onClick={() => setEditingEmail(null)} style={{ background: 'transparent', border: '1px solid #e5e7eb', padding: '6px 10px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', color: '#6b7280' }}>✕</button>
+                      </div>
+                    ) : (
+                      <span onClick={() => { setEditingEmail(p.id); setEmailValue(p.email || '') }}
+                        style={{ cursor: 'pointer', borderBottom: '1px dashed #d1d5db', paddingBottom: '1px' }}
+                        title="Cliquer pour modifier">
+                        {p.email || <span style={{ color: '#d1d5db', fontStyle: 'italic' }}>— ajouter email —</span>}
+                      </span>
+                    )}
                   </td>
                   <td style={{ padding: '16px' }}>
                     {p.id === myProfile?.id ? (
@@ -228,12 +259,11 @@ export default function UtilisateursPage() {
                     {p.id === myProfile?.id ? (
                       <span style={{ fontSize: '11px', color: '#9ca3af', background: '#f0ede8', padding: '3px 8px', borderRadius: '4px' }}>Vous</span>
                     ) : (
-                      <button onClick={() => { setDeleteTarget(p); setReassignTo('') }}
-                        style={{ background: 'transparent', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '13px', opacity: 0.5, padding: '4px 8px' }}
-                        title="Supprimer ce membre"
+                      <button onClick={() => setDeleteModal(p)}
+                        style={{ background: 'transparent', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '16px', opacity: 0.4, padding: '4px' }}
                         onMouseOver={e => (e.currentTarget.style.opacity = '1')}
-                        onMouseOut={e => (e.currentTarget.style.opacity = '0.5')}>
-                        Supprimer
+                        onMouseOut={e => (e.currentTarget.style.opacity = '0.4')}>
+                        ✕
                       </button>
                     )}
                   </td>
